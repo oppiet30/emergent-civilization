@@ -81,6 +81,17 @@ jobs:
           test "$(wc -l < storage/simulation-report.csv)" = 11
       - name: Verify movement and reproduction
         run: php tests/MovementIntegrationTest.php
+      - name: Verify timestamped reports and overwrite protection
+        run: |
+          php bin/simulate-report.php 1 1 1
+          php bin/simulate-report.php 1 1 1
+          test "$(find storage -maxdepth 1 -name 'simulation-report-world-1-*Z.csv' | wc -l)" = 2
+          sha256sum storage/simulation-report.csv > /tmp/simulation-report.sha256
+          if php bin/simulate-report.php 1 1 1 storage/simulation-report.csv; then
+            echo "An existing report was overwritten"
+            exit 1
+          fi
+          sha256sum --check /tmp/simulation-report.sha256
       - name: Upload simulation report
         if: always()
         uses: actions/upload-artifact@v4

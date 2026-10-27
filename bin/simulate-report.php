@@ -9,7 +9,9 @@ use App\Simulation\SurvivalEngine;
 $worldId = filter_var($argv[1] ?? null, FILTER_VALIDATE_INT);
 $ticks = filter_var($argv[2] ?? null, FILTER_VALIDATE_INT);
 $interval = filter_var($argv[3] ?? '100', FILTER_VALIDATE_INT);
-$output = $argv[4] ?? 'storage/simulation-report.csv';
+// UTC and microseconds keep reports sortable and distinguish quick successive runs.
+$timestamp = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d_H-i-s-u');
+$output = $argv[4] ?? "storage/simulation-report-world-{$worldId}-{$timestamp}Z.csv";
 
 if (!$worldId || $worldId < 1 || !$ticks || $ticks < 1 || $ticks > 10000 ||
     !$interval || $interval < 1) {
@@ -23,9 +25,9 @@ $dir = dirname($output);
 if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
     throw new RuntimeException("Cannot create report directory: $dir");
 }
-$file = fopen($output, 'wb');
+$file = fopen($output, 'xb');
 if ($file === false) {
-    throw new RuntimeException("Cannot write report: $output");
+    throw new RuntimeException("Cannot create report: $output (choose a new filename if it already exists)");
 }
 fputcsv($file, ['tick','population','deaths','food_inventory','tile_food','average_hunger','average_health','death_events','deer','rabbits','hunts_interval','meat_interval'], ',', '"', '');
 $summary = $db->prepare(
