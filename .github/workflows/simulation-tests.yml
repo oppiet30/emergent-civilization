@@ -1,0 +1,74 @@
+name: Simulation integration tests
+
+on:
+  push:
+    branches: [main, feature/autonomous-survival]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: test-root-password
+          MARIADB_DATABASE: emergent_civilization
+          MARIADB_USER: ec_app
+          MARIADB_PASSWORD: test-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: emergent_civilization
+      DB_USER: ec_app
+      DB_PASSWORD: test-password
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP and MariaDB client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-mysql mariadb-client composer
+      - name: Check PHP syntax
+        run: |
+          find app bin tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Run deterministic terrain test
+        run: composer test
+      - name: Apply database migrations
+        run: |
+          mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization < database/migrations/001_initial.sql
+          mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization < database/migrations/002_survival.sql
+      - name: Create world and seed 30 settlers
+        run: |
+          php bin/create-world.php "CI World" 1337
+          php bin/seed-agents.php 1
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE world_id=1')" = 30
+          mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e "UPDATE worlds SET status='running' WHERE id=1"
+      - name: Run 1,000 simulation ticks
+        run: |
+          time php bin/simulate.php 1 1000
+      - name: Verify tick count and survival invariants
+        run: |
+          mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization <<'SQL'
+          SELECT current_tick, status FROM worlds WHERE id=1;
+          SELECT COUNT(*) AS total_agents, SUM(alive) AS living_agents FROM agents WHERE world_id=1;
+          SELECT COUNT(*) AS death_events FROM world_events WHERE world_id=1;
+          SQL
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT current_tick FROM worlds WHERE id=1')" = 1000
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE world_id=1')" = 30
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE hunger>100 OR energy>100 OR health>100 OR (alive=1 AND health=0) OR (alive=0 AND health>0)')" = 0
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM tile_resources WHERE food>food_capacity')" = 0
