@@ -23,6 +23,7 @@ final class SurvivalEngine
             }
             $tick = (int)$world['current_tick'] + 1;
             $rng = new DeterministicRandom((int)$world['rng_state']);
+            $oldAgeDeaths = (new AgingSystem($this->db))->advance($worldId, $tick, $rng);
             $moved = (new MovementSystem($this->db))->advance($worldId, $rng);
             $wildlife = new WildlifeSystem($this->db);
             $childcare = new ChildcareSystem($this->db);
@@ -33,7 +34,7 @@ final class SurvivalEngine
             $take = $this->db->prepare('UPDATE tile_resources SET food=food-1 WHERE tile_id=? AND food>0');
             $update = $this->db->prepare('UPDATE agents SET hunger=?,energy=?,health=?,food_inventory=?,alive=? WHERE id=?');
             $event = $this->db->prepare('INSERT INTO world_events(world_id,tick,agent_id,event_type,details) VALUES (?,?,?,?,?)');
-            $deaths = 0;
+            $deaths = $oldAgeDeaths;
             $hunts = 0;
             $meat = 0;
             $feedings = 0;
@@ -88,7 +89,7 @@ final class SurvivalEngine
             $q = $this->db->prepare('UPDATE worlds SET current_tick=?,rng_state=? WHERE id=?');
             $q->execute([$tick,$rng->state(),$worldId]);
             $this->db->commit();
-            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births'],'moved'=>$moved,'feedings'=>$feedings,'child_deaths'=>$childDeaths];
+            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births'],'moved'=>$moved,'feedings'=>$feedings,'child_deaths'=>$childDeaths,'old_age_deaths'=>$oldAgeDeaths];
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;

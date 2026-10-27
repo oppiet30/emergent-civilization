@@ -83,6 +83,8 @@ jobs:
         run: php tests/MovementIntegrationTest.php
       - name: Verify childcare and childhood survival
         run: php tests/ChildcareIntegrationTest.php
+      - name: Verify aging and old-age mortality
+        run: php tests/AgingIntegrationTest.php
       - name: Verify timestamped reports and overwrite protection
         run: |
           php bin/simulate-report.php 1 1 1
