@@ -2,7 +2,7 @@ name: Simulation integration tests
 
 on:
   push:
-    branches: [main, feature/autonomous-survival]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -60,7 +60,7 @@ jobs:
           mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e "UPDATE worlds SET status='running' WHERE id=1"
       - name: Run 1,000 simulation ticks
         run: |
-          time php bin/simulate.php 1 1000
+          time php bin/simulate-report.php 1 1000 100 storage/simulation-report.csv
       - name: Verify tick count and survival invariants
         run: |
           mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization <<'SQL'
@@ -72,3 +72,11 @@ jobs:
           test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE world_id=1')" = 30
           test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE hunger>100 OR energy>100 OR health>100 OR (alive=1 AND health=0) OR (alive=0 AND health>0)')" = 0
           test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM tile_resources WHERE food>food_capacity')" = 0
+      - name: Upload simulation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-report
+          path: storage/simulation-report.csv
+          if-no-files-found: warn
+          retention-days: 7
