@@ -114,6 +114,14 @@ try {
     $q->execute([$world]); $pregnancy = $q->fetch(PDO::FETCH_ASSOC);
     verify((int)$pregnancy['resolved_tick'] === 1 && $pregnancy['child_id'] === null, 'Dead mother pregnancy not resolved');
 
+    // Old-age and starvation deaths contribute separately to the same tick total.
+    $world = agingWorld($db,$worlds);
+    agingAgent($db,$world,AgingSystem::MAX_AGE_DAYS);
+    $starving = agingAgent($db,$world,20*365,'female',0);
+    $db->prepare('UPDATE agents SET hunger=87,health=8 WHERE id=?')->execute([$starving]);
+    $result = $engine->tick($world);
+    verify($result['deaths'] === 2 && $result['old_age_deaths'] === 1 && $result['child_deaths'] === 0 && deathCount($db,$world) === 2, 'Starvation and old-age causes were conflated');
+
     // Report must include deaths earlier in the interval, even if final tick has none.
     $world = agingWorld($db,$worlds);
     agingAgent($db,$world,AgingSystem::MAX_AGE_DAYS-1);
