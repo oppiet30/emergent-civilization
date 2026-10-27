@@ -36,7 +36,7 @@ jobs:
       DB_PASSWORD: test-password
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install PHP and MariaDB client
         run: |
           sudo apt-get update
