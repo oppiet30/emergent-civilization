@@ -44,7 +44,7 @@ function snapshot(PDO $db, int $world): array
 try {
     $world = fixture($db,$worlds);
     agent($db,$world,'Explorer',0,'female');
-    agent($db,$world,'Infant',0,'male',0);
+    agent($db,$world,'Infant',4,'male',0);
     agent($db,$world,'Dead',1,'male',7300,100,0);
     agent($db,$world,'Isolated',4,'male');
     agent($db,$world,'Tired',0,'male',7300,19);
