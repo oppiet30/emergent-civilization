@@ -23,6 +23,7 @@ final class SurvivalEngine
             }
             $tick = (int)$world['current_tick'] + 1;
             $rng = new DeterministicRandom((int)$world['rng_state']);
+            $moved = (new MovementSystem($this->db))->advance($worldId, $rng);
             $wildlife = new WildlifeSystem($this->db);
             $q = $this->db->prepare('SELECT a.*, t.id AS tile_id, t.terrain FROM agents a JOIN world_tiles t ON t.world_id=a.world_id AND t.x=a.x AND t.y=a.y WHERE a.world_id=? AND a.alive=1 ORDER BY a.id FOR UPDATE');
             $q->execute([$worldId]);
@@ -76,7 +77,7 @@ final class SurvivalEngine
             $q = $this->db->prepare('UPDATE worlds SET current_tick=?,rng_state=? WHERE id=?');
             $q->execute([$tick,$rng->state(),$worldId]);
             $this->db->commit();
-            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births']];
+            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births'],'moved'=>$moved];
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;
