@@ -1,0 +1,67 @@
+<?php
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use App\Infrastructure\Database;
+use App\Simulation\SurvivalEngine;
+
+$worldId = filter_var($argv[1] ?? null, FILTER_VALIDATE_INT);
+$ticks = filter_var($argv[2] ?? null, FILTER_VALIDATE_INT);
+$interval = filter_var($argv[3] ?? '100', FILTER_VALIDATE_INT);
+$output = $argv[4] ?? 'storage/simulation-report.csv';
+
+if (!$worldId || $worldId < 1 || !$ticks || $ticks < 1 || $ticks > 10000 ||
+    !$interval || $interval < 1) {
+    fwrite(STDERR, "Usage: php bin/simulate-report.php <world-id> <ticks> [interval=100] [csv-path]\n");
+    exit(2);
+}
+
+$db = Database::connect();
+$engine = new SurvivalEngine($db);
+$dir = dirname($output);
+if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+    throw new RuntimeException("Cannot create report directory: $dir");
+}
+$file = fopen($output, 'wb');
+if ($file === false) {
+    throw new RuntimeException("Cannot write report: $output");
+}
+fputcsv($file, ['tick','population','deaths','food_inventory','tile_food','average_hunger','average_health','death_events'], ',', '"', '');
+$summary = $db->prepare(
+    'SELECT COUNT(*) AS population, COALESCE(SUM(food_inventory),0) AS food_inventory, ' .
+    'COALESCE(AVG(hunger),0) AS average_hunger, COALESCE(AVG(health),0) AS average_health ' .
+    'FROM agents WHERE world_id=? AND alive=1'
+);
+$tileFood = $db->prepare('SELECT COALESCE(SUM(food),0) FROM tile_resources WHERE world_id=?');
+$deathEvents = $db->prepare("SELECT COUNT(*) FROM world_events WHERE world_id=? AND event_type='death'");
+try {
+    for ($i = 1; $i <= $ticks; $i++) {
+        $result = $engine->tick($worldId);
+        if ($i % $interval !== 0 && $i !== $ticks) {
+            continue;
+        }
+        $summary->execute([$worldId]);
+        $agents = $summary->fetch(PDO::FETCH_ASSOC);
+        $tileFood->execute([$worldId]);
+        $deathEvents->execute([$worldId]);
+        $row = [
+            $result['tick'],
+            (int)$agents['population'],
+            $result['deaths'],
+            (int)$agents['food_inventory'],
+            (int)$tileFood->fetchColumn(),
+            round((float)$agents['average_hunger'], 2),
+            round((float)$agents['average_health'], 2),
+            (int)$deathEvents->fetchColumn(),
+        ];
+        fputcsv($file, $row, ',', '"', '');
+        echo sprintf(
+            "Tick %d: population=%d, deaths_this_tick=%d, tile_food=%d, average_hunger=%.2f, total_deaths=%d\n",
+            $row[0], $row[1], $row[2], $row[4], $row[5], $row[7]
+        );
+    }
+} finally {
+    fclose($file);
+}
+echo "Report saved: $output\n";
