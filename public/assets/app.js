@@ -26,7 +26,7 @@ function renderPeople() {
   const search=$('search').value.trim().toLowerCase();
   const matches=people.filter(person=>person.name.toLowerCase().includes(search) || String(person.id)===search);
   $('people-list').replaceChildren();
-  $('people-count').textContent=`${number(people.length)} shown`;
+  $('people-count').textContent=search?`${number(matches.length)} of ${number(people.length)}`:`${number(people.length)} shown`;
   for (const person of matches) {
     const row=element('button','person-row'); row.type='button';
     row.classList.toggle('selected',String(person.id)===String(state.selected));
