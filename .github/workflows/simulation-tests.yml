@@ -60,7 +60,7 @@ jobs:
           php bin/seed-agents.php 1
           php bin/seed-wildlife.php 1
           test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e 'SELECT COUNT(*) FROM agents WHERE world_id=1')" = 30
-          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e \"SELECT COUNT(*) FROM agents WHERE world_id=1 AND sex='female'\")" = 15
+          test "$(mariadb -N -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e "SELECT COUNT(*) FROM agents WHERE world_id=1 AND sex='female'")" = 15
           mariadb -h 127.0.0.1 -u ec_app -ptest-password emergent_civilization -e "UPDATE worlds SET status='running' WHERE id=1"
       - name: Run 1,000 simulation ticks
         run: |
