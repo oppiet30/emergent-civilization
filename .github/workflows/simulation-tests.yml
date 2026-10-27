@@ -43,7 +43,8 @@ jobs:
           sudo apt-get install -y php-cli php-mysql mariadb-client composer
       - name: Check PHP syntax
         run: |
-          find app bin tests -name '*.php' -print0 | xargs -0 -n1 php -l
+          find app bin tests public -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check public/assets/app.js
       - name: Install Composer dependencies
         run: composer install --no-interaction --no-progress
       - name: Run deterministic terrain test
@@ -85,6 +86,10 @@ jobs:
         run: php tests/ChildcareIntegrationTest.php
       - name: Verify aging and old-age mortality
         run: php tests/AgingIntegrationTest.php
+      - name: Verify read-only viewer API and HTTP
+        run: |
+          php tests/ViewerIntegrationTest.php
+          php tests/ViewerHttpTest.php
       - name: Verify timestamped reports and overwrite protection
         run: |
           php bin/simulate-report.php 1 1 1

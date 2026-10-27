@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emergent Civilization · Observer</title>
+  <link rel="stylesheet" href="/assets/app.css"><script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/">▦ <span>EMERGENT CIVILIZATION</span></a><span class="observer">OBSERVER MODE</span></header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">A WORLD, UNFOLDING</p><h1 id="world-name">Your civilization</h1><p id="world-meta" class="muted">Explore the land. Follow the people. Read their history.</p></div><div class="controls"><label>World<select id="world-select" aria-label="Choose a world"></select></label><button id="refresh" class="primary">Refresh world ↻</button></div></section>
+    <p id="notice" role="status" aria-live="polite">Connecting to your world…</p>
+    <section class="stats" aria-label="Population summary"><article><span>Living people</span><strong id="stat-population">—</strong></article><article><span>Adults</span><strong id="stat-adults">—</strong></article><article><span>Children</span><strong id="stat-children">—</strong></article><article><span>Recorded births</span><strong id="stat-births">—</strong></article><article><span>Recorded deaths</span><strong id="stat-deaths">—</strong></article></section>
+    <div class="world-grid">
+      <section class="panel map-panel"><div class="panel-heading"><div><p class="eyebrow">THE LAND</p><h2>World map</h2></div><span id="map-size" class="badge">Terrain</span></div><div class="map-wrap"><canvas id="map" width="640" height="640" tabindex="0" aria-label="World terrain map. Use arrow keys to choose a tile and Enter to inspect it."></canvas></div><div class="legend"><span><i class="grass"></i>Grass</span><span><i class="forest"></i>Forest</span><span><i class="water"></i>Water</span><span><i class="mountain"></i>Mountain</span><span><i class="person-dot"></i>People</span></div><div id="tile-details" class="tile-details">Click a tile to see who lives there. Arrow keys and Enter also work.</div></section>
+      <aside class="sidebar"><section class="panel people-panel"><div class="panel-heading"><div><p class="eyebrow">THE INHABITANTS</p><h2>People</h2></div><span id="people-count" class="badge">Living</span></div><label class="search-label" for="search">Find a person<input id="search" type="search" placeholder="Search by name or ID…"></label><div id="people-list" class="people-list"></div></section><section class="panel person-panel"><div class="panel-heading"><div><p class="eyebrow">A LIFE IN THIS WORLD</p><h2 id="person-title">Person details</h2></div></div><div id="person-details" class="person-details"><p class="muted">Choose a person from the map, list, or history to see their age, health, and family.</p></div></section></aside>
+    </div>
+    <section class="panel history-panel"><div class="panel-heading"><div><p class="eyebrow">THE RECORD</p><h2>World history</h2></div><label>Show<select id="event-filter"><option value="vital">Births &amp; deaths</option><option value="birth">Births</option><option value="death">Deaths</option><option value="conception">Conceptions</option><option value="infant_death">Infant loss</option><option value="all">All events</option></select></label></div><div id="events" class="events"></div><button id="more-events" class="secondary" hidden>Load earlier events</button></section>
+    <footer>One tick is one day. Ages use 365-day years. This viewer observes; simulation commands advance the world.</footer>
+  </main>
+</body>
+</html>
