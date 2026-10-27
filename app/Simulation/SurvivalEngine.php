@@ -25,7 +25,8 @@ final class SurvivalEngine
             $rng = new DeterministicRandom((int)$world['rng_state']);
             $moved = (new MovementSystem($this->db))->advance($worldId, $rng);
             $wildlife = new WildlifeSystem($this->db);
-            $q = $this->db->prepare('SELECT a.*, t.id AS tile_id, t.terrain FROM agents a JOIN world_tiles t ON t.world_id=a.world_id AND t.x=a.x AND t.y=a.y WHERE a.world_id=? AND a.alive=1 ORDER BY a.id FOR UPDATE');
+            $childcare = new ChildcareSystem($this->db);
+            $q = $this->db->prepare('SELECT a.*, t.id AS tile_id, t.terrain FROM agents a JOIN world_tiles t ON t.world_id=a.world_id AND t.x=a.x AND t.y=a.y WHERE a.world_id=? AND a.alive=1 ORDER BY (a.age_ticks<6570),a.id FOR UPDATE');
             $q->execute([$worldId]);
             $agents = $q->fetchAll();
             $resource = $this->db->prepare('SELECT food FROM tile_resources WHERE tile_id=? FOR UPDATE');
@@ -35,15 +36,24 @@ final class SurvivalEngine
             $deaths = 0;
             $hunts = 0;
             $meat = 0;
+            $feedings = 0;
+            $childDeaths = 0;
             foreach ($agents as $a) {
+                $isChild = (int)$a['age_ticks'] < ChildcareSystem::ADULT_AGE;
                 $hunger = min(100, (int)$a['hunger'] + 3);
                 $energy = max(0, (int)$a['energy'] - 2);
                 $health = (int)$a['health'];
                 $food = (int)$a['food_inventory'];
+                // Adults finish first so food donations cannot be overwritten by stale inventories.
+                if ($isChild && $hunger >= 50 && $food === 0 && $childcare->takeFood($worldId, $a)) {
+                    $food++;
+                    $feedings++;
+                    $event->execute([$worldId,$tick,(int)$a['id'],'feeding','Received food from a local adult']);
+                }
                 if ($hunger >= 50 && $food > 0) {
                     $food--;
                     $hunger = max(0, $hunger - 45);
-                } elseif ($food < 3 && $a['terrain'] !== 'water' && $a['terrain'] !== 'mountain') {
+                } elseif (!$isChild && $food < 3 && $a['terrain'] !== 'water' && $a['terrain'] !== 'mountain') {
                     // Alternate gathering and hunting so wildlife is a genuine food source.
                     if ($rng->nextInt(100) < 35) {
                         $yield = $wildlife->hunt($worldId, (int)$a['tile_id'], $rng);
@@ -67,7 +77,8 @@ final class SurvivalEngine
                 $update->execute([$hunger,$energy,$health,$food,$alive,(int)$a['id']]);
                 if (!$alive) {
                     $deaths++;
-                    $event->execute([$worldId,$tick,(int)$a['id'],'death','Died from prolonged starvation']);
+                    if ($isChild) { $childDeaths++; }
+                    $event->execute([$worldId,$tick,(int)$a['id'],'death',$isChild ? 'Child died from prolonged starvation' : 'Died from prolonged starvation']);
                 }
             }
             $population = (new PopulationSystem($this->db))->advance($worldId,$tick,$rng);
@@ -77,7 +88,7 @@ final class SurvivalEngine
             $q = $this->db->prepare('UPDATE worlds SET current_tick=?,rng_state=? WHERE id=?');
             $q->execute([$tick,$rng->state(),$worldId]);
             $this->db->commit();
-            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births'],'moved'=>$moved];
+            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births'],'moved'=>$moved,'feedings'=>$feedings,'child_deaths'=>$childDeaths];
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;
