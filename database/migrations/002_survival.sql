@@ -1,0 +1,21 @@
+CREATE TABLE tile_resources (
+ world_id BIGINT UNSIGNED NOT NULL,
+ tile_id BIGINT UNSIGNED NOT NULL,
+ food INT UNSIGNED NOT NULL DEFAULT 0,
+ food_capacity INT UNSIGNED NOT NULL DEFAULT 0,
+ PRIMARY KEY (tile_id),
+ KEY idx_world_food (world_id, food),
+ FOREIGN KEY (world_id) REFERENCES worlds(id) ON DELETE CASCADE,
+ FOREIGN KEY (tile_id) REFERENCES world_tiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE world_events (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ world_id BIGINT UNSIGNED NOT NULL,
+ tick BIGINT UNSIGNED NOT NULL,
+ agent_id BIGINT UNSIGNED NULL,
+ event_type VARCHAR(32) NOT NULL,
+ details VARCHAR(255) NOT NULL,
+ KEY idx_world_tick (world_id,tick,id),
+ FOREIGN KEY (world_id) REFERENCES worlds(id) ON DELETE CASCADE,
+ FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
