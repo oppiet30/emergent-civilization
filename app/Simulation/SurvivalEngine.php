@@ -69,13 +69,14 @@ final class SurvivalEngine
                     $event->execute([$worldId,$tick,(int)$a['id'],'death','Died from prolonged starvation']);
                 }
             }
+            $population = (new PopulationSystem($this->db))->advance($worldId,$tick,$rng);
             if ($tick % 10 === 0) { $wildlife->advance($worldId, $rng); }
             $q = $this->db->prepare('UPDATE tile_resources SET food=LEAST(food_capacity,food+1) WHERE world_id=? AND food<food_capacity');
             $q->execute([$worldId]);
             $q = $this->db->prepare('UPDATE worlds SET current_tick=?,rng_state=? WHERE id=?');
             $q->execute([$tick,$rng->state(),$worldId]);
             $this->db->commit();
-            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat];
+            return ['tick'=>$tick,'agents'=>count($agents),'deaths'=>$deaths,'hunts'=>$hunts,'meat'=>$meat,'births'=>$population['births']];
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;
