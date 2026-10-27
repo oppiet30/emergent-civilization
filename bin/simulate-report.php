@@ -29,7 +29,7 @@ $file = fopen($output, 'xb');
 if ($file === false) {
     throw new RuntimeException("Cannot create report: $output (choose a new filename if it already exists)");
 }
-fputcsv($file, ['tick','population','deaths','food_inventory','tile_food','average_hunger','average_health','death_events','deer','rabbits','hunts_interval','meat_interval','children','births_interval','child_deaths_interval','feedings_interval'], ',', '"', '');
+fputcsv($file, ['tick','population','deaths','food_inventory','tile_food','average_hunger','average_health','death_events','deer','rabbits','hunts_interval','meat_interval','children','births_interval','child_deaths_interval','feedings_interval','old_age_deaths_interval'], ',', '"', '');
 $summary = $db->prepare(
     'SELECT COUNT(*) AS population, COALESCE(SUM(food_inventory),0) AS food_inventory, ' .
     'COALESCE(SUM(age_ticks<6570),0) AS children, COALESCE(AVG(hunger),0) AS average_hunger, COALESCE(AVG(health),0) AS average_health ' .
@@ -42,6 +42,7 @@ $intervalMeat = 0;
 $intervalBirths = 0;
 $intervalChildDeaths = 0;
 $intervalFeedings = 0;
+$intervalOldAgeDeaths = 0;
 $deathEvents = $db->prepare("SELECT COUNT(*) FROM world_events WHERE world_id=? AND event_type='death'");
 try {
     for ($i = 1; $i <= $ticks; $i++) {
@@ -51,6 +52,7 @@ try {
         $intervalBirths += $result['births'];
         $intervalChildDeaths += $result['child_deaths'];
         $intervalFeedings += $result['feedings'];
+        $intervalOldAgeDeaths += $result['old_age_deaths'];
         if ($i % $interval !== 0 && $i !== $ticks) {
             continue;
         }
@@ -80,6 +82,7 @@ try {
             $intervalBirths,
             $intervalChildDeaths,
             $intervalFeedings,
+            $intervalOldAgeDeaths,
         ];
         fputcsv($file, $row, ',', '"', '');
         $intervalHunts = 0;
@@ -87,9 +90,10 @@ try {
         $intervalBirths = 0;
         $intervalChildDeaths = 0;
         $intervalFeedings = 0;
+        $intervalOldAgeDeaths = 0;
         echo sprintf(
-            "Tick %d: population=%d, deaths_this_tick=%d, tile_food=%d, average_hunger=%.2f, total_deaths=%d, children=%d, births_interval=%d, child_deaths_interval=%d, feedings_interval=%d\n",
-            $row[0], $row[1], $row[2], $row[4], $row[5], $row[7], $row[12], $row[13], $row[14], $row[15]
+            "Tick %d: population=%d, deaths_this_tick=%d, tile_food=%d, average_hunger=%.2f, total_deaths=%d, children=%d, births_interval=%d, child_deaths_interval=%d, feedings_interval=%d, old_age_deaths_interval=%d\n",
+            $row[0], $row[1], $row[2], $row[4], $row[5], $row[7], $row[12], $row[13], $row[14], $row[15], $row[16]
         );
     }
 } finally {
