@@ -111,7 +111,77 @@ try {
     $engine->tick($world);
     expect((int)state($db,$child)['age_ticks'] === 6570 && $care->caregiverIds($world) === [], 'Adulthood did not release caregiver');
 
-    echo "PASS: caregiver stays, parent preference, fallback care, food conservation, locality, childhood starvation and adulthood\n";
+    // Parents return one tile per tick around blocked terrain; replay is identical.
+    $replay = [];
+    foreach ([0,1] as $copy) {
+        $world = careWorld($db,$worlds);
+        $q = $db->prepare('INSERT INTO world_tiles(world_id,x,y,terrain) VALUES(?,?,?,?)');
+        foreach ([[1,0,'water'],[2,0,'grass'],[0,1,'forest'],[1,1,'grass'],[2,1,'grass'],[3,1,'mountain']] as [$x,$y,$terrain]) {
+            $q->execute([$world,$x,$y,$terrain]);
+        }
+        $mother = person($db,$world,'Returning mother',7300,10);
+        $child = person($db,$world,'Separated child',100,0,48);
+        $db->prepare('UPDATE agents SET x=2 WHERE id=?')->execute([$child]);
+        parents($db,$child,$mother,null);
+        $replay[] = [$world,$mother,$child];
+    }
+    foreach ([[0,1],[1,1],[2,1],[2,0]] as [$x,$y]) {
+        $results = [];
+        $snapshots = [];
+        foreach ($replay as [$world,$mother,$child]) {
+            $results[] = $engine->tick($world);
+            $p = state($db,$mother);
+            expect((int)$p['x'] === $x && (int)$p['y'] === $y, 'Returning parent skipped a tile or crossed a barrier');
+            $q = $db->prepare('SELECT x,y,energy,hunger,health,food_inventory,age_ticks FROM agents WHERE world_id=? ORDER BY id');
+            $q->execute([$world]);
+            $snapshots[] = $q->fetchAll(PDO::FETCH_ASSOC);
+        }
+        expect($results[0] === $results[1] && $snapshots[0] === $snapshots[1], 'Reunion replay diverged');
+    }
+    foreach ($replay as [$world,$mother,$child]) {
+        expect((int)state($db,$child)['hunger'] === 15 && (int)state($db,$mother)['food_inventory'] === 9, 'Reunited parent did not feed child on arrival');
+        $engine->tick($world);
+        expect((int)state($db,$mother)['x'] === 2 && (int)state($db,$mother)['y'] === 0, 'Reunited caregiver wandered away');
+    }
+
+    // A parent caring for another child must stay; the other parent returns.
+    $world = careWorld($db,$worlds,true);
+    $db->prepare("INSERT INTO world_tiles(world_id,x,y,terrain) VALUES(?,2,0,'forest')")->execute([$world]);
+    $mother = person($db,$world,'Busy mother',7300,10);
+    $father = person($db,$world,'Free father',7300,10);
+    $db->prepare('UPDATE agents SET x=1 WHERE id=?')->execute([$father]);
+    $local = person($db,$world,'Local child',100);
+    parents($db,$local,$mother,null);
+    $remote = person($db,$world,'Remote child',100,0,48);
+    $db->prepare('UPDATE agents SET x=2 WHERE id=?')->execute([$remote]);
+    parents($db,$remote,$mother,$father);
+    $engine->tick($world);
+    expect((int)state($db,$mother)['x'] === 0 && (int)state($db,$father)['x'] === 2, 'Reunion abandoned an existing dependent or missed father fallback');
+    expect((int)state($db,$remote)['hunger'] === 6, 'Returning father failed to feed child');
+
+    // Unreachable mother falls back to a reachable father; siblings reserve one parent.
+    $world = careWorld($db,$worlds,true);
+    $q = $db->prepare("INSERT INTO world_tiles(world_id,x,y,terrain) VALUES(?,?,0,'grass')");
+    $q->execute([$world,2]); $q->execute([$world,5]);
+    $mother = person($db,$world,'Isolated mother',7300,10);
+    $db->prepare('UPDATE agents SET x=5 WHERE id=?')->execute([$mother]);
+    $father = person($db,$world,'Reachable father',7300,10);
+    foreach (['Sibling one','Sibling two'] as $name) {
+        $child = person($db,$world,$name,100);
+        $db->prepare('UPDATE agents SET x=2 WHERE id=?')->execute([$child]);
+        parents($db,$child,$mother,$father);
+    }
+    $tiles = [];
+    $q = $db->prepare('SELECT x,y,movement_cost FROM world_tiles WHERE world_id=? ORDER BY y,x');
+    $q->execute([$world]);
+    foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $tile) { $tiles[$tile['x'].','.$tile['y']] = $tile; }
+    $care = new ChildcareSystem($db);
+    $steps = $care->reunionSteps($world,$tiles,$care->caregiverIds($world));
+    expect(count($steps) === 1 && isset($steps[$father]) && (int)$steps[$father][0] === 1, 'Unreachable-parent fallback or sibling assignment failed');
+    $db->prepare('UPDATE agents SET energy=0 WHERE id=?')->execute([$father]);
+    expect($care->reunionSteps($world,$tiles,$care->caregiverIds($world)) === [], 'Exhausted parent was assigned a reunion step');
+
+    echo "PASS: caregiver stays, parent preference, fallback care, food conservation, locality, childhood starvation, adulthood and deterministic parent reunion\n";
 } finally {
     if ($db->inTransaction()) { $db->rollBack(); }
     // All references are removed before deleting these fixtures (including cross-world test parents).

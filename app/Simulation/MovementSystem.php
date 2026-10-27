@@ -20,10 +20,18 @@ final class MovementSystem
         $q = $this->db->prepare('SELECT id,x,y,energy FROM agents WHERE world_id=? AND alive=1 AND age_ticks>=6570 AND energy>=20 ORDER BY id FOR UPDATE');
         $q->execute([$worldId]);
         $move = $this->db->prepare('UPDATE agents SET x=?,y=?,energy=energy-? WHERE id=? AND world_id=?');
-        $caregivers = (new ChildcareSystem($this->db))->caregiverIds($worldId);
+        $childcare = new ChildcareSystem($this->db);
+        $caregivers = $childcare->caregiverIds($worldId);
+        $reunions = $childcare->reunionSteps($worldId, $tiles, $caregivers);
         $moved = 0;
         foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $agent) {
             if (isset($caregivers[(int)$agent['id']])) { continue; }
+            if (isset($reunions[(int)$agent['id']])) {
+                [$x,$y,$cost] = $reunions[(int)$agent['id']];
+                $move->execute([$x,$y,$cost,$agent['id'],$worldId]);
+                $moved++;
+                continue;
+            }
             // A 25% daily exploration chance; staying makes encounters last longer.
             if ($rng->nextInt(100) >= 25) { continue; }
             $neighbors = [];
