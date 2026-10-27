@@ -10,7 +10,8 @@ final class DeterministicRandom
     {
         if ($maxExclusive <= 0) { throw new \InvalidArgumentException('maxExclusive must be positive'); }
         $this->state = (int) (($this->state * 1103515245 + 12345) & 0x7fffffff);
-        return $this->state % $maxExclusive;
+        // Avoid the short low-bit cycles of this linear congruential generator.
+        return ($this->state >> 8) % $maxExclusive;
     }
     public function state(): int { return $this->state; }
 }

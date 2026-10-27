@@ -19,10 +19,10 @@ try {
     $q=$db->prepare("SELECT id,x,y,terrain FROM world_tiles WHERE world_id=? AND terrain IN ('grass','forest') ORDER BY id");
     $q->execute([$id]); $tiles=$q->fetchAll();
     if (!$tiles) { throw new RuntimeException('No habitable tiles'); }
-    $ins=$db->prepare('INSERT INTO agents(world_id,name,x,y,food_inventory) VALUES(?,?,?,?,?)');
+    $ins=$db->prepare('INSERT INTO agents(world_id,name,x,y,food_inventory,sex,age_ticks) VALUES(?,?,?,?,?,?,?)');
     for ($i=1;$i<=30;$i++) {
         $tile=$tiles[$rng->nextInt(count($tiles))];
-        $ins->execute([$id,sprintf('Settler %02d',$i),$tile['x'],$tile['y'],2]);
+        $ins->execute([$id,sprintf('Settler %02d',$i),$tile['x'],$tile['y'],2,$i%2===0?'female':'male',7300]);
     }
     $res=$db->prepare('INSERT INTO tile_resources(world_id,tile_id,food,food_capacity) VALUES(?,?,?,?)');
     foreach ($tiles as $tile) {
